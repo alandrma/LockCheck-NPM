@@ -3,21 +3,21 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const USAGE = `
-lockcheck.mjs — validasi klaim "dependensi tidak bisa di-upgrade karena konflik"
+lockcheck.mjs — validate the claim "a dependency can't be upgraded due to a conflict"
 
 USAGE:
-  node lockcheck.mjs <package-lock.json> [opsi]
+  node lockcheck.mjs <package-lock.json> [options]
 
-OPSI:
-  --target <nama>            Analisis mendalam satu dependensi:
-                             siapa yang memakainya, dengan range versi apa,
-                             apakah range-nya benar-benar membatasi upgrade.
-  --upgrade <nama>@<versi>   Simulasi upgrade: apakah versi baru tsb diterima
-                             oleh SEMUA dependents sesuai range mereka (semver).
-  --json                     Output sebagai JSON (untuk scripting / diff antar versi).
-  --no-tree                  Skip analisis multi-version (dedup) pada --target.
+OPTIONS:
+  --target <name>            Deep analysis of one dependency:
+                             who uses it, with which version ranges,
+                             and whether those ranges really block an upgrade.
+  --upgrade <name>@<version> Simulate an upgrade: is the new version accepted
+                             by ALL dependents per their ranges (semver)?
+  --json                     Output as JSON (for scripting / diffing across versions).
+  --no-tree                  Skip the multi-version (dedup) analysis for --target.
 
-CONTOH:
+EXAMPLES:
   node lockcheck.mjs package-lock.json --target axios
   node lockcheck.mjs package-lock.json --upgrade axios@1.7.0
   node lockcheck.mjs package-lock.json --target axios --json
@@ -322,44 +322,44 @@ function reportTarget(lock, name, { json } = {}) {
 
   line(bar);
   line(`TARGET: ${name}`);
-  line(`  Versi terpasang : ${summary.installedVersions.join(', ')}`);
-  line(`  Jumlah versi    : ${summary.versionCount}`);
+  line(`  Installed versions : ${summary.installedVersions.join(', ')}`);
+  line(`  Version count      : ${summary.versionCount}`);
   line(bar);
   line('');
   if (summary.dependents.length === 0) {
-    line('  ❌ Tidak ada yang memakai paket ini (tidak ada dependents).');
-    line('     Artinya paket ini TIDAK menjadi penghalang upgrade apa pun.');
+    line('  ❌ Nothing depends on this package (no dependents).');
+    line('     So it CANNOT be the blocker of any upgrade.');
   } else {
-    line('  Dependents (siapa yang memakai, dan dengan range berapa):');
+    line('  Dependents (who uses it, and with what range):');
     line('');
     for (const d of summary.dependents) {
-      const r = d.range ?? '(tanpa range)';
+      const r = d.range ?? '(no range)';
       const okVersions = (d.resolved ?? []).filter(x => x.ok).map(x => x.version).join(', ');
       line(`    • ${d.from}`);
       line(`        range     : ${r}`);
-      line(`        terpenuhi : ${okVersions || '(tidak ada)'}`);
+      line(`        satisfied : ${okVersions || '(none)'}`);
       line('');
     }
   }
 
   if (stale.length) {
     line(bar);
-    line('  ANALISIS KESENJANGAN VERSI (old version vs newest installed):');
+    line('  VERSION GAP ANALYSIS (old version vs newest installed):');
     for (const s of consolidation) {
       line('');
-      line(`  ● ${s.name}@${s.version}  (terbaru yang terpasang: ${s.newest})`);
+      line(`  ● ${s.name}@${s.version}  (newest installed: ${s.newest})`);
       for (const d of s.dependents) {
-        line(`      dipakai oleh: ${d.from}  (${d.range ?? 'tanpa range'})`);
+        line(`      used by: ${d.from}  (${d.range ?? 'no range'})`);
       }
       if (s.consolidation.canConsolidate) {
-        line(`      ✅ BISA di-konsolidasi ke ${s.consolidation.to} — semua dependents`);
-        line(`         dari versi lama ini menerima versi baru tsb menurut range-nya.`);
-        line(`         Artinya: klaim "tidak bisa di-upgrade karena konflik" TIDAK terbukti`);
-        line(`         (hanya soal mau/enggan, bukan konflik semver).`);
+        line(`      ✅ CAN be consolidated to ${s.consolidation.to} — all dependents`);
+        line(`         of this old version accept the new one per their ranges.`);
+        line(`         Meaning: the "can't upgrade due to conflict" claim is NOT proven`);
+        line(`         (it's reluctance, not a semver conflict).`);
       } else {
-        line(`      ❌ Konsolidasi ke versi lain TIDAK mungkin tanpa mengubah range:`);
-        line(`         setidaknya satu dependent range-nya menolak semua versi lain yang terpasang.`);
-        line(`         (Konflik semver NYATA — cek range dependents di atas.)`);
+        line(`      ❌ Consolidation to another version is impossible without changing ranges:`);
+        line(`         at least one dependent's range rejects every other installed version.`);
+        line(`         (A REAL semver conflict — check the dependents' ranges above.)`);
       }
     }
   }
@@ -368,7 +368,7 @@ function reportTarget(lock, name, { json } = {}) {
 
 function reportUpgrade(lock, target, { json } = {}) {
   const [name, ver] = target.split('@');
-  if (!ver) return 'ERROR: format --upgrade harus <nama>@<versi>. Contoh: --upgrade axios@1.7.0';
+  if (!ver) return 'ERROR: --upgrade format must be <name>@<version>. Example: --upgrade axios@1.7.0';
   const res = simulateUpgrade(lock, name, ver);
   if (json) return JSON.stringify(res, null, 2);
 
@@ -376,50 +376,50 @@ function reportUpgrade(lock, target, { json } = {}) {
   const line = (s = '') => L.push(s);
   const bar = '─'.repeat(64);
   line(bar);
-  line(`SIMULASI UPGRADE: ${name} → ${ver}`);
+  line(`UPGRADE SIMULATION: ${name} → ${ver}`);
   line(bar);
   line('');
   if (res.accepted.length) {
-    line(`  ✅ DITERIMA oleh ${res.accepted.length} dependent:`);
+    line(`  ✅ ACCEPTED by ${res.accepted.length} dependent(s):`);
     for (const d of res.accepted) {
-      line(`      • ${d.byPath === '' ? '(root)' : d.byPath}  (${d.range ?? 'tanpa range'})`);
+      line(`      • ${d.byPath === '' ? '(root)' : d.byPath}  (${d.range ?? 'no range'})`);
     }
     line('');
   }
   if (res.rejected.length) {
-    line(`  ❌ DITOLAK oleh ${res.rejected.length} dependent (range tidak mengizinkan ${ver}):`);
+    line(`  ❌ REJECTED by ${res.rejected.length} dependent(s) (range does not allow ${ver}):`);
     const rootRej = res.rejected.filter(d => d.byPath === '');
     const transRej = res.rejected.filter(d => d.byPath !== '');
     for (const d of res.rejected) {
-      const src = d.byPath === '' ? '(root / package.json proyek)' : d.byPath;
+      const src = d.byPath === '' ? '(root / project package.json)' : d.byPath;
       line(`      • ${src}  (${d.range})`);
     }
     line('');
     if (rootRej.length) {
-      line('  ⚠️  PENTING: penolakan TERBESAR berasal dari ROOT (package.json proyek).');
-      line('     Range di root DIKONTROL oleh developer sendiri — bisa diubah kapan saja,');
-      line('     tidak ada "konflik" teknis di sini. Klaim "tidak bisa di-upgrade" lemah.');
+      line('  ⚠️  IMPORTANT: the main rejection comes from ROOT (project package.json).');
+      line('     Root ranges are CONTROLLED by the developer — changeable at any time,');
+      line('     there is no technical "conflict" here. The "can\'t upgrade" claim is weak.');
       line('');
     }
     if (transRej.length) {
-      line('  Penolakan transitif (dari dependensi lain):');
+      line('  Transitive rejections (from other dependencies):');
       const byRange = new Map();
       for (const d of transRej) {
         if (!byRange.has(d.range)) byRange.set(d.range, []);
         byRange.get(d.range).push(d.byName);
       }
       for (const [r, pkgs] of byRange) {
-        line(`      range "${r}" dinyatakan oleh: ${[...new Set(pkgs)].join(', ')}`);
+        line(`      range "${r}" declared by: ${[...new Set(pkgs)].join(', ')}`);
       }
       line('');
-      line('  Langkah validasi berikutnya (butuh akses npm registry):');
-      line('     npm view <nama> versions   → cek versi terbaru aktual & "jarak versi"');
-      line('     lalu: npm install <nama>@<versi-terbaru> --save-exact  → uji nyata');
+      line('  Next validation step (needs npm registry access):');
+      line('     npm view <name> versions  → check the actual latest version & "version gap"');
+      line('     then: npm install <name>@<latest> --save-exact  → real test');
     }
   } else {
-    line(`  ✅ Versi ${ver} DITERIMA oleh SEMUA dependents sesuai range mereka.`);
-    line('     Tidak ada konflik semver yang menghalangi upgrade ini.');
-    line('     Jika developer bilang "konflik", minta mereka menunjukkan range yang menolak.');
+    line(`  ✅ Version ${ver} is ACCEPTED by ALL dependents per their ranges.`);
+    line('     No semver conflict blocks this upgrade.');
+    line('     If the developer claims a "conflict", ask them to show the rejecting range.');
   }
   return L.join('\n');
 }
@@ -433,26 +433,26 @@ function reportDefault(lock, { json } = {}) {
   const bar = '─'.repeat(64);
   line(bar);
   line(`SCAN: ${lock.lockfileVersion >= 2 ? `lockfile v${lock.lockfileVersion}` : 'lockfile v1'}`);
-  line(`Paket terpasang: ${lock.packages.size}`);
-  line(`Paket multi-versi (dedup opportunity / tanda dependensi usang): ${stale.length}`);
+  line(`Installed packages: ${lock.packages.size}`);
+  line(`Multi-version packages (dedup opportunity / sign of outdated deps): ${stale.length}`);
   line(bar);
   line('');
   if (!stale.length) {
-    line('  ✅ Tidak ada paket yang terpasang dalam beberapa versi sekaligus.');
-    line('     (Tidak ada tanda dependensi "obsolete yang menempel".)');
+    line('  ✅ No package is installed at multiple versions at once.');
+    line('     (No sign of a "stuck obsolete" dependency.)');
     return L.join('\n');
   }
   for (const s of stale.slice(0, 60)) {
-    line(`  ● ${s.name}: ${s.version}  (mayor lain di tree: ${s.newestMajor})`);
+    line(`  ● ${s.name}: ${s.version}  (another major in tree: ${s.newestMajor})`);
     for (const d of s.dependents.slice(0, 5)) {
-      line(`      dipakai oleh: ${d.from}  (${d.range ?? 'tanpa range'})`);
+      line(`      used by: ${d.from}  (${d.range ?? 'no range'})`);
     }
-    if (s.dependents.length > 5) line(`      ... dan ${s.dependents.length - 5} lagi`);
+    if (s.dependents.length > 5) line(`      ... and ${s.dependents.length - 5} more`);
     line('');
   }
-  if (stale.length > 60) line(`  ... dan ${stale.length - 60} paket lain (gunakan --json untuk lengkap)`);
+  if (stale.length > 60) line(`  ... and ${stale.length - 60} more packages (use --json for full output)`);
   line('');
-  line('  Gunakan: node lockcheck.mjs <lock> --target <nama>  untuk detail per paket.');
+  line('  Tip: node lockcheck.mjs <lock> --target <name>  for per-package details.');
   return L.join('\n');
 }
 
@@ -478,7 +478,7 @@ function main() {
   try {
     lock = parseLockfile(resolve(lockArg));
   } catch (e) {
-    console.error(`❌ Gagal membaca ${lockArg}: ${e.message}`);
+    console.error(`❌ Failed to read ${lockArg}: ${e.message}`);
     console.error(USAGE);
     process.exit(1);
   }
