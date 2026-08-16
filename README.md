@@ -1,4 +1,3 @@
-[Uploading README.md…]()
 # lockcheck
 
 **Validate the "we can't upgrade that dependency" claim — from `package-lock.json` alone.**
