@@ -1,3 +1,4 @@
+[Uploading README.md…]()
 # lockcheck
 
 **Validate the "we can't upgrade that dependency" claim — from `package-lock.json` alone.**
@@ -32,8 +33,13 @@ just a range the developer controls (and chose not to widen).
 
 ## Features
 
-- **Zero dependencies** — single `.mjs` file, runs with stock Node.js (`>= 18`).
+- **Zero dependencies** — pure Go, stdlib only. Compiles to a single static
+  binary; the original `.mjs` version (stock Node.js `>= 18`) is kept alongside
+  for reference.
 - **Works offline** — only reads `package-lock.json`. No registry, no network.
+- **Interactive HTML graphs** — `--html` exports a standalone dependency graph
+  (SVG + inline JS, no CDN/libraries) with zoom, pan, tooltips, search, and
+  accept/reject edge coloring in `--upgrade` mode.
 - **Supports all lockfile formats** — npm `lockfileVersion` 1, 2, and 3.
 - **Reverse dependency graph** — reconstructed from the lockfile, not from a live tree.
 - **Semver simulation** — proposed versions are tested against *every* dependent's
@@ -46,28 +52,48 @@ just a range the developer controls (and chose not to widen).
 
 ---
 
-## Usage
+## Build & usage
 
 ```bash
+# Build the binary (Go >= 1.22, no external dependencies)
+go build -o lockcheck .
+
 # General scan: packages installed at multiple versions (markers of rot)
-node lockcheck.mjs package-lock.json
+./lockcheck package-lock.json
 
 # Deep-dive on one package: who uses it, with what range
-node lockcheck.mjs package-lock.json --target jquery
+./lockcheck package-lock.json --target jquery
 
 # Simulate an upgrade: is <name>@<version> accepted by all dependents?
-node lockcheck.mjs package-lock.json --upgrade axios@1.7.0
+./lockcheck package-lock.json --upgrade axios@1.7.0
 
 # Same, as JSON for scripting
-node lockcheck.mjs package-lock.json --upgrade axios@1.7.0 --json
+./lockcheck package-lock.json --upgrade axios@1.7.0 --json
+
+# Save an interactive dependency graph as a standalone HTML file
+./lockcheck package-lock.json --target jquery --html graph.html
+./lockcheck package-lock.json --upgrade jquery@3.7.1 --html graph.html
 ```
+
+The `--html` output is a **fully self-contained HTML file** — no external
+libraries, no CDN, works offline. It renders the reverse dependency chain around
+a package (who uses it, with what ranges) as an interactive SVG graph with:
+
+- zoom (scroll) and pan (drag)
+- hover tooltips showing name / installed versions / level
+- a search box to highlight packages
+- in `--upgrade` mode: **green edges** = range accepts the new version,
+  **red edges** = range rejects it
+
+Without `--target`/`--upgrade`, `--html` renders the outdated (multi-version)
+packages and which packages pull the old copy.
 
 Scan a whole fleet of projects:
 
 ```bash
 for f in */package-lock.json; do
   echo "== $f =="
-  node /path/to/lockcheck.mjs "$f"
+  ./lockcheck "$f"
 done
 ```
 
@@ -138,14 +164,17 @@ lockfile hasn't been refreshed — not a technical conflict.
 
 ## Requirements
 
-- Node.js `>= 18` (uses global `fetch`? no — nothing network; just `fs`).
-- No other dependencies. No `npm install`.
+- Go `>= 1.22` to build (`go build -o lockcheck .`). The compiled binary has no
+  runtime dependencies.
+- Alternatively, the reference implementation `lockcheck.mjs` needs Node.js
+  `>= 18` and nothing else.
 
 ---
 
 ## Roadmap
 
 - [ ] Query npm registry (`--online`) to compare installed vs latest actual versions
+- [ ] Export graph as PNG/SVG file (currently HTML/SVG-in-HTML only)
 - [ ] `--json` full-machine-readable report with exit codes for CI gates
 - [ ] Support for `npm-shrinkwrap.json` and `pnpm-lock.yaml`
 
